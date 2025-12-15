@@ -1,8 +1,18 @@
-// index.js
+// src/index.js
+
 require('dotenv').config();
 const express = require('express');
 const app = express();
+const pool = require('./db'); // 💡 MOVIDO AQUÍ: Conexión a DB debe ir temprano
+
 app.use(express.json());
+
+// 🔹 Prueba de Conexión a PostgreSQL (Se ejecuta al inicio)
+pool.query('SELECT NOW()', (err, res) => {
+  if(err) return console.error('❌ Error en la prueba de conexión:', err);
+  console.log('✅ Conectado a PostgreSQL correctamente');
+  console.log('🟢 Conexión OK, hora del servidor:', res.rows[0]);
+});
 
 // 🔹 Importar rutas
 const empleadoRoutes = require('./routes/empleado');
@@ -18,52 +28,44 @@ const materialRoutes = require('./routes/material');
 const authRoutes = require('./routes/auth');
 
 // 🔹 Usar rutas
-app.use('/empleado', empleadoRoutes);
-app.use('/cliente', clienteRoutes);
-app.use('/proveedor', proveedorRoutes);
-app.use('/producto', productoRoutes);
-app.use('/pedido', pedidoRoutes);
-app.use('/pago', pagoRoutes);
-app.use('/detalle_pedido', detallePedidoRoutes);
-app.use('/diseno', disenoRoutes);
-app.use('/metodo_impresion', metodoImpresionRoutes);
-app.use('/material', materialRoutes);
-app.use('/auth', authRoutes);
+// (Generalmente es buena práctica agrupar rutas bajo un prefijo /api)
+app.use('/api/empleado', empleadoRoutes); 
+app.use('/api/cliente', clienteRoutes);
+app.use('/api/proveedor', proveedorRoutes);
+app.use('/api/producto', productoRoutes);
+app.use('/api/pedido', pedidoRoutes);
+app.use('/api/pago', pagoRoutes);
+app.use('/api/detalle_pedido', detallePedidoRoutes);
+app.use('/api/diseno', disenoRoutes);
+app.use('/api/metodo_impresion', metodoImpresionRoutes);
+app.use('/api/material', materialRoutes);
+app.use('/api/auth', authRoutes);
 
 // 🔹 Ruta base
 app.get('/', (req, res) => {
-  res.send('🚀 API funcionando correctamente');
+  res.send('🚀 API funcionando correctamente');
+});
+
+// 🔹 Ruta de Diagnóstico (Checkeo de Tablas)
+app.get('/api/check-tables', async (req, res) => {
+  try {
+    const tables = ['empleado','cliente','proveedor','producto','pedido','pago','detalle_pedido','material','metodo_impresion','diseno'];
+    const results = {};
+
+    for (const table of tables) {
+      const result = await pool.query(`SELECT * FROM ${table} LIMIT 5`);
+      results[table] = result.rows;
+    }
+
+    res.json(results);
+  } catch (err) {
+    console.error('Error al chequear tablas:', err);
+    res.status(500).send('Error al obtener datos de las tablas');
+  }
 });
 
 // 🔹 Puerto
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🟢 Servidor corriendo en http://localhost:${PORT}`);
-});
-
-
-
-const pool = require('./db');
-
-pool.query('SELECT NOW()', (err, res) => {
-  if(err) return console.error('❌ Error en la prueba de conexión:', err);
-  console.log('🟢 Conexión OK, hora del servidor:', res.rows[0]);
-});
-
-// index.js
-app.get('/check-tables', async (req, res) => {
-  try {
-    const tables = ['empleado','cliente','proveedor','producto','pedido','pago','detalle_pedido','material','metodo_impresion','diseno'];
-    const results = {};
-
-    for (const table of tables) {
-      const result = await pool.query(`SELECT * FROM ${table} LIMIT 5`);
-      results[table] = result.rows;
-    }
-
-    res.json(results);
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error al obtener datos de las tablas');
-  }
+  console.log(`🟢 Servidor corriendo en el puerto ${PORT}`);
 });
