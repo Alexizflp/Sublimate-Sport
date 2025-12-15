@@ -1,8 +1,11 @@
-// routes/auth.js
+// src/routes/auth.js
 const express = require('express');
 const pool = require('../db');
 const router = express.Router();
-const bcrypt = require('bcrypt'); // Para encriptar contraseñas si quieres más seguridad
+// 💡 CORRECCIÓN CRÍTICA: Usamos 'bcryptjs' en lugar de 'bcrypt' para evitar errores de compilación en Railway.
+const bcrypt = require('bcryptjs'); 
+const jwt = require('jsonwebtoken');
+
 
 // ----------------------------
 // LOGIN EMPLEADO
@@ -21,14 +24,17 @@ router.post('/login', async (req, res) => {
 
     const empleado = result.rows[0];
 
-    // Si tus contraseñas están en texto plano (como ahora)
+    // NOTA IMPORTANTE: Actualmente, tu código usa contraseñas en texto plano.
+    // Usaremos la comprobación simple (texto plano) por ahora.
     if (empleado.contrasena_hash !== contrasena) {
       return res.status(401).json({ error: 'Contraseña incorrecta' });
     }
 
-    // Si usas bcrypt
-    // const match = await bcrypt.compare(contrasena, empleado.contrasena_hash);
-    // if (!match) return res.status(401).json({ error: 'Contraseña incorrecta' });
+    // Si decides usar la encriptación REAL (bcrypt), descomenta estas líneas y comenta las de arriba:
+    /*
+    const match = await bcrypt.compare(contrasena, empleado.contrasena_hash);
+    if (!match) return res.status(401).json({ error: 'Contraseña incorrecta' });
+    */
 
     res.json({
       mensaje: 'Login exitoso',
@@ -56,10 +62,11 @@ router.put('/cambiar-contrasena/:id', async (req, res) => {
   if (!nueva_contrasena) return res.status(400).json({ error: 'Nueva contraseña requerida' });
 
   try {
-    // Si quieres, puedes hashear la contraseña con bcrypt:
+    // Si quieres hashear la contraseña con bcrypt (Recomendado):
     // const hash = await bcrypt.hash(nueva_contrasena, 10);
     // await pool.query('UPDATE empleado SET contrasena_hash=$1 WHERE id_empleado=$2', [hash, id]);
 
+    // Usando texto plano (menos seguro, pero coincide con el resto de tu código actual)
     await pool.query('UPDATE empleado SET contrasena_hash=$1 WHERE id_empleado=$2', [nueva_contrasena, id]);
 
     res.json({ mensaje: 'Contraseña actualizada correctamente' });
