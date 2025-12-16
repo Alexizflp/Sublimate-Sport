@@ -1,18 +1,23 @@
-// src/routes/auth.js
 const express = require('express');
 const pool = require('../db');
 const router = express.Router();
-// 💡 CORRECCIÓN CRÍTICA: Usamos 'bcryptjs' en lugar de 'bcrypt' para evitar errores de compilación en Railway.
-const bcrypt = require('bcryptjs'); 
+// const bcrypt = require('bcryptjs'); // Descomentar si usas encriptación real
 const jwt = require('jsonwebtoken');
 
+// Clave secreta para JWT (Debería estar en .env)
+const JWT_SECRET = process.env.JWT_SECRET || 'mi_secreto_super_seguro';
 
 // ----------------------------
 // LOGIN EMPLEADO
 // ----------------------------
 router.post('/login', async (req, res) => {
   const { usuario_login, contrasena } = req.body;
-  if (!usuario_login || !contrasena) return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+  
+  console.log(`[AUTH] Intento de login para: ${usuario_login}`); // Log para depuración
+
+  if (!usuario_login || !contrasena) {
+      return res.status(400).json({ error: 'Usuario y contraseña requeridos' });
+  }
 
   try {
     const result = await pool.query(
@@ -20,26 +25,38 @@ router.post('/login', async (req, res) => {
       [usuario_login]
     );
 
-    if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario no encontrado' });
+    if (result.rows.length === 0) {
+        console.log(`[AUTH] Usuario no encontrado: ${usuario_login}`);
+        return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
 
     const empleado = result.rows[0];
 
-    // NOTA IMPORTANTE: Actualmente, tu código usa contraseñas en texto plano.
-    // Usaremos la comprobación simple (texto plano) por ahora.
+    // VERIFICACIÓN DE CONTRASEÑA (Texto Plano para pruebas)
+    // Nota: Si en la DB dice 'hash1234', la contraseña es 'hash1234'
     if (empleado.contrasena_hash !== contrasena) {
-      return res.status(401).json({ error: 'Contraseña incorrecta' });
+      console.log(`[AUTH] Contraseña incorrecta para: ${usuario_login}`);
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
 
-    // Si decides usar la encriptación REAL (bcrypt), descomenta estas líneas y comenta las de arriba:
-    /*
-    const match = await bcrypt.compare(contrasena, empleado.contrasena_hash);
-    if (!match) return res.status(401).json({ error: 'Contraseña incorrecta' });
-    */
+    // Generar Token JWT
+    const token = jwt.sign(
+        { 
+            id: empleado.id_empleado, 
+            rol: empleado.rol,
+            nombre: empleado.nombre 
+        },
+        JWT_SECRET,
+        { expiresIn: '8h' }
+    );
+
+    console.log(`[AUTH] Login exitoso para: ${usuario_login} (${empleado.rol})`);
 
     res.json({
       mensaje: 'Login exitoso',
+      token: token, // Enviamos el token al frontend
       empleado: {
-        id: empleado.id_empleado,
+        id_empleado: empleado.id_empleado,
         nombre: empleado.nombre,
         apellido: empleado.apellido,
         rol: empleado.rol
@@ -48,32 +65,7 @@ router.post('/login', async (req, res) => {
 
   } catch (err) {
     console.error('❌ Error en login empleado:', err);
-    res.status(500).json({ error: 'Error en la base de datos' });
-  }
-});
-
-// ----------------------------
-// CAMBIAR CONTRASEÑA
-// ----------------------------
-router.put('/cambiar-contrasena/:id', async (req, res) => {
-  const { id } = req.params;
-  const { nueva_contrasena } = req.body;
-
-  if (!nueva_contrasena) return res.status(400).json({ error: 'Nueva contraseña requerida' });
-
-  try {
-    // Si quieres hashear la contraseña con bcrypt (Recomendado):
-    // const hash = await bcrypt.hash(nueva_contrasena, 10);
-    // await pool.query('UPDATE empleado SET contrasena_hash=$1 WHERE id_empleado=$2', [hash, id]);
-
-    // Usando texto plano (menos seguro, pero coincide con el resto de tu código actual)
-    await pool.query('UPDATE empleado SET contrasena_hash=$1 WHERE id_empleado=$2', [nueva_contrasena, id]);
-
-    res.json({ mensaje: 'Contraseña actualizada correctamente' });
-
-  } catch (err) {
-    console.error('❌ Error cambiando contraseña:', err);
-    res.status(500).json({ error: 'Error en la base de datos' });
+    res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
